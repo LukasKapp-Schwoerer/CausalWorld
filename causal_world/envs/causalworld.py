@@ -28,7 +28,6 @@ class CausalWorld(gym.Env):
                  seed=0,
                  action_mode="joint_positions",
                  observation_mode="structured",
-                 enhanced_observations=False,
                  normalize_actions=True,
                  normalize_observations=True,
                  max_episode_length=None,
@@ -64,12 +63,6 @@ class CausalWorld(gym.Env):
                                           the platform and the second half are
                                           the goal images rendered from the
                                           same point of view.
-        :param enhanced_observations: (bool) this is a boolean which specifies
-                                             whether the structured observation
-                                             contains the mass of the block or
-                                             not. This parameter is ignored if
-                                             the observation mode is not "stru
-                                             ctured". The default value is False.
         :param normalize_actions: (bool) this is a boolean which specifies
                                          whether the actions passed to the step
                                          function are normalized or not.
@@ -93,9 +86,7 @@ class CausalWorld(gym.Env):
                                        order as well.
         :param wrappers: (causal_world.wrappers) should not be used for now.
         """
-        print('A')
         self._observation_mode = observation_mode
-        self._enhanced_observations = enhanced_observations
         self._action_mode = action_mode
         self._enable_visualization = enable_visualization
         self.seed(seed)
@@ -282,10 +273,6 @@ class CausalWorld(gym.Env):
         else:
             observation = self._task.filter_structured_observations()
 
-            # add the block mass to the structured observation.
-            if self._enhanced_observations:
-                observation = np.append(observation, self.get_current_state_variables()['tool_block']['mass'])
-            
         reward = self._task.get_reward()
         info = self._task.get_info()
         if self._scale_reward_by_dt:

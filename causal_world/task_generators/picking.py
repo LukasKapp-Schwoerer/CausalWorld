@@ -13,7 +13,8 @@ class PickingTaskGenerator(BaseTask):
                  joint_positions=None,
                  tool_block_position=np.array([0, 0, 0.0325]),
                  tool_block_orientation=np.array([0, 0, 0, 1]),
-                 goal_height=0.15):
+                 goal_height=0.15,
+                 enhanced_observations=False):
         """
         This task generates a task for picking an object in the air.
 
@@ -41,6 +42,9 @@ class PickingTaskGenerator(BaseTask):
                                                of the tool block, yaw, roll, pitch.
         :param goal_height: (float) specifies the goal height that needs to be
                                     reached.
+        :param enhanced_observations: (bool) specifies if the observations should 
+                                             contain tool block mass and tool block 
+                                             friction.
         """
         super().__init__(task_name="picking",
                          variables_space=variables_space,
@@ -59,6 +63,7 @@ class PickingTaskGenerator(BaseTask):
         self.previous_object_position = None
         self.previous_end_effector_positions = None
         self.previous_joint_velocities = None
+        self.enhanced_observations = enhanced_observations
 
     def get_description(self):
         """
@@ -97,7 +102,9 @@ class PickingTaskGenerator(BaseTask):
             "goal_block_type", "goal_block_size",
             "goal_block_cartesian_position", "goal_block_orientation"
         ]
-
+        if self.enhanced_observations:
+            self._task_stage_observation_keys.extend(["tool_block_mass", 
+                                                      "tool_block_friction"])
         return
 
     def _set_intervention_space_a(self):
