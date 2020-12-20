@@ -93,6 +93,7 @@ class CausalWorld(gym.Env):
                                        order as well.
         :param wrappers: (causal_world.wrappers) should not be used for now.
         """
+        print('A')
         self._observation_mode = observation_mode
         self._enhanced_observations = enhanced_observations
         self._action_mode = action_mode
