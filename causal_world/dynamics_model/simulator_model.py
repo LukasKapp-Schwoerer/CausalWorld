@@ -1,6 +1,8 @@
 from stable_baselines.common.vec_env import SubprocVecEnv
 import numpy as np
-
+from sdtw import SoftDTW
+from sdtw.distance import SquaredEuclidean
+from sklearn.cluster import KMeans
 
 class SimulatorModel(object):
 
@@ -78,10 +80,42 @@ class ExperimentingSimulatorModel(object):
             [_make_env_func() for i in range(self.num_environments)])
         return
 
-    def evaluate_trajectories(self, action_sequences):
+    def _evaluate_trajectories(self, action_sequences):
         observations = self.simulate_trajectories(action_sequences)
-        print(np.shape(observations))
-        return np.zeros(action_sequences.shape[0])
+        rewards = np.zeros(action_sequences.shape[0])
+        
+        max_inner_iters = 100
+
+        for i in range(rewards.size):
+            #Lloyd's algorithm
+            centroid_idc = np.random.choice(self.num_environments, 2, replace=False)
+            centroids = observations[i, centroid_idc].copy()
+            cluster_memberships = np.zeros(self.num_environments)
+            j = 0
+            while j < max_inner_iters:
+                for env in range(self.num_environments):
+                    distances = np.zeros(2)
+                    for k in range(centroids.shape[0]):
+                        D = SquaredEuclidean(centroids[k], observations[i, env])
+                        sdtw = SoftDTW(D)
+                        distances[k] = sdtw.compute()
+                        #distances[k] = sdtw(centroids[k], observations[i, env])
+                    print(distances)
+                
+                j += 1
+
+
+        return rewards
+
+    def evaluate_trajectories(self, action_sequences):
+        print('here')
+        observations = self.simulate_trajectories(action_sequences)
+        rewards = np.zeros(action_sequences.shape[0])
+        
+        for i in range(rewards.size):
+            kmeans = KMeans(n_clusters=2, random_state=0, n_jobs=-1).fit(observations[i].reshape(self.num_environments, -1))
+            print(i)
+        return rewards
 
 
     def simulate_trajectories(self, action_sequences):
