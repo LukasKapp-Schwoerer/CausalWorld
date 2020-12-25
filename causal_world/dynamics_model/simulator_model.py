@@ -3,6 +3,7 @@ import numpy as np
 from sdtw import SoftDTW
 from sdtw.distance import SquaredEuclidean
 from sklearn.cluster import KMeans
+from sklearn.metrics import pairwise_distances
 
 class SimulatorModel(object):
 
@@ -80,15 +81,17 @@ class ExperimentingSimulatorModel(object):
             [_make_env_func() for i in range(self.num_environments)])
         return
 
-    def _evaluate_trajectories(self, action_sequences):
+    def evaluate_trajectories(self, action_sequences):
+        num_clusters = 2
         observations = self.simulate_trajectories(action_sequences)
         rewards = np.zeros(action_sequences.shape[0])
+        #distances = np.zeros((self.num_environments,num_clusters))
         
         max_inner_iters = 100
 
         for i in range(rewards.size):
             #Lloyd's algorithm
-            centroid_idc = np.random.choice(self.num_environments, 2, replace=False)
+            centroid_idc = np.random.choice(self.num_environments, num_clusters, replace=False)
             centroids = observations[i, centroid_idc].copy()
             cluster_memberships = np.zeros(self.num_environments)
             j = 0
@@ -102,19 +105,33 @@ class ExperimentingSimulatorModel(object):
                         #distances[k] = sdtw(centroids[k], observations[i, env])
                     print(distances)
                 
+                
                 j += 1
 
 
         return rewards
 
-    def evaluate_trajectories(self, action_sequences):
-        print('here')
+    def _evaluate_trajectories(self, action_sequences):
         observations = self.simulate_trajectories(action_sequences)
         rewards = np.zeros(action_sequences.shape[0])
+        objective = 'paper' # can be "kmeans_score"
         
         for i in range(rewards.size):
-            kmeans = KMeans(n_clusters=2, random_state=0, n_jobs=-1).fit(observations[i].reshape(self.num_environments, -1))
-            print(i)
+            kmeans = KMeans(n_clusters=2, random_state=0, n_jobs=-1)
+            predictions = kmeans.fit_predict(observations[i].reshape(self.num_environments, -1))
+
+            if objective == 'kmeans_score':
+                # reward as the kmeans score for each action.
+                rewards[i] = kmeans.score(observations[i].reshape(self.num_environments, -1))
+            elif objective == 'paper':
+                # reward as the objective from Causal Curiosity eq. 
+                D = pairwise_distances(observations[i].reshape(self.num_environments, -1))
+                C1 = -np.amax(D[np.where(predictions == 0)][:,np.where(predictions == 0)])
+                C2 = -np.amax(D[np.where(predictions == 1)][:,np.where(predictions == 1)])
+                C3 = np.amin(D[np.where(predictions == 0)][:,np.where(predictions == 1)])
+                rewards[i] = C1 + C2 + C3
+
+        
         return rewards
 
 
