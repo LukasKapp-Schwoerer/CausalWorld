@@ -82,6 +82,17 @@ class ExperimentingSimulatorModel(object):
             [_make_env_func() for i in range(self.num_environments)])
         return
 
+
+    def causal_curiosity(self, D, cluster_memberships, num_clusters=2):
+
+        cluster_indices = [np.where(cluster_memberships == i) for i in range(num_clusters)]
+
+        C1 = np.amin(D[cluster_indices[0]][:,cluster_indices[1]])
+        C2 = np.amax(D[cluster_indices[0]][:,cluster_indices[0]])
+        C3 = np.amax(D[cluster_indices[1]][:,cluster_indices[1]])
+
+        return C1 - C2 - C3
+
     def evaluate_trajectories(self, action_sequences):
         num_clusters = 2
         observations = self.simulate_trajectories(action_sequences)
@@ -89,12 +100,14 @@ class ExperimentingSimulatorModel(object):
         max_inner_iters = 100
 
         for i in range(rewards.size):
+
             #Lloyd's algorithm
             centroid_idc = np.random.choice(self.num_environments, num_clusters, replace=False)
             centroids = observations[i, centroid_idc].copy()
             cluster_memberships = np.zeros(self.num_environments)
             j = 0
             dist = 0
+            previous_dist = 0
             while j < max_inner_iters:
                 distances = np.zeros((self.num_environments,num_clusters))
                 for env in range(self.num_environments):
@@ -102,17 +115,30 @@ class ExperimentingSimulatorModel(object):
                         D = SquaredEuclidean(centroids[k], observations[i, env])
                         sdtw = SoftDTW(D, gamma=1.0) # gamma is a regularization parameter
                         distances[env,k] = sdtw.compute()
+
+                previous_dist = dist
                 dist = np.sum(np.amin(distances,axis=1))
-                print(f'Distance: {dist}')
+                if dist == previous_dist: # coverged
+                    break
+
                 cluster_memberships = np.argmin(distances, axis=1)
-                for k in range(centroid.shape[0]):
-                    cluster_observations = observations[i,np.where(cluster_memberships == k)]
-                    barycenter_init = cluster_observations/len(cluster_observations)
+
+                for k in range(centroids.shape[0]):
+                    cluster_observations = np.squeeze(observations[i,np.where(cluster_memberships == k)], axis=0)
+
+                    barycenter_init = np.sum(cluster_observations, axis=0)/len(cluster_observations)
                     centroids[k] = sdtw_barycenter(cluster_observations, barycenter_init)
 
                 j += 1
-            print("Now sequence ", i)
 
+            D = np.zeros([self.num_environments, self.num_environments])
+            for env_index_1 in range(self.num_environments):
+                for env_index_2 in range(self.num_environments):
+                    SDTW_distance = SquaredEuclidean(observations[i, env_index_1], observations[i, env_index_2])
+                    D[env_index_1][env_index_2] = SoftDTW(SDTW_distance).compute()
+
+
+            rewards[i] = self.causal_curiosity(D, cluster_memberships)
 
         return rewards
 
@@ -131,10 +157,10 @@ class ExperimentingSimulatorModel(object):
             elif objective == 'paper':
                 # reward as the objective from Causal Curiosity eq. 
                 D = pairwise_distances(observations[i].reshape(self.num_environments, -1))
-                C1 = -np.amax(D[np.where(predictions == 0)][:,np.where(predictions == 0)])
-                C2 = -np.amax(D[np.where(predictions == 1)][:,np.where(predictions == 1)])
+                C1 = np.amax(D[np.where(predictions == 0)][:,np.where(predictions == 0)])
+                C2 = np.amax(D[np.where(predictions == 1)][:,np.where(predictions == 1)])
                 C3 = np.amin(D[np.where(predictions == 0)][:,np.where(predictions == 1)])
-                rewards[i] = C1 + C2 + C3
+                rewards[i] = C3 - C1 - C3
 
         
         return rewards
