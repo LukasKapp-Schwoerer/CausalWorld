@@ -59,7 +59,7 @@ class SimulatorModel(object):
 
 class ExperimentingSimulatorModel(object):
 
-    def __init__(self, _make_env_func, parallel_agents, num_environments):
+    def __init__(self, _make_env_func, parallel_agents, num_environments, use_z_only=False):
         """
         This class instantiates a dynamics model based on the pybullet simulator
         (i.e: simulates exactly the result of the actions), it can be used
@@ -78,6 +78,7 @@ class ExperimentingSimulatorModel(object):
 
         self.parallel_agents = parallel_agents
         self.num_environments = num_environments
+        self.use_z_only = use_z_only
         self.envs = SubprocVecEnv(
             [_make_env_func() for i in range(self.num_environments)])
         return
@@ -96,6 +97,10 @@ class ExperimentingSimulatorModel(object):
     def evaluate_trajectories(self, action_sequences):
         num_clusters = 2
         observations = self.simulate_trajectories(action_sequences)
+        
+        if self.use_z_only:
+            observations = np.squeeze(observations[:,:,:,34])
+
         rewards = np.zeros(action_sequences.shape[0])
         max_inner_iters = 100
 
@@ -112,7 +117,10 @@ class ExperimentingSimulatorModel(object):
                 distances = np.zeros((self.num_environments,num_clusters))
                 for env in range(self.num_environments):
                     for k in range(centroids.shape[0]):
-                        D = SquaredEuclidean(centroids[k], observations[i, env])
+                        if self.use_z_only:
+                            D = SquaredEuclidean(centroids[k,np.newaxis], observations[i, env, np.newaxis])
+                        else:
+                            D = SquaredEuclidean(centroids[k], observations[i, env])
                         sdtw = SoftDTW(D, gamma=1.0) # gamma is a regularization parameter
                         distances[env,k] = sdtw.compute()
 
@@ -127,14 +135,20 @@ class ExperimentingSimulatorModel(object):
                     cluster_observations = np.squeeze(observations[i,np.where(cluster_memberships == k)], axis=0)
 
                     barycenter_init = np.sum(cluster_observations, axis=0)/len(cluster_observations)
-                    centroids[k] = sdtw_barycenter(cluster_observations, barycenter_init)
+                    if self.use_z_only:
+                        centroids[k] = np.squeeze(sdtw_barycenter(cluster_observations[:,:,np.newaxis], barycenter_init[:,np.newaxis]))
+                    else:
+                        centroids[k] = sdtw_barycenter(cluster_observations, barycenter_init)
 
                 j += 1
 
             D = np.zeros([self.num_environments, self.num_environments])
             for env_index_1 in range(self.num_environments):
                 for env_index_2 in range(self.num_environments):
-                    SDTW_distance = SquaredEuclidean(observations[i, env_index_1], observations[i, env_index_2])
+                    if self.use_z_only:
+                        SDTW_distance = SquaredEuclidean(observations[i, env_index_1, np.newaxis], observations[i, env_index_2, np.newaxis])
+                    else:
+                        SDTW_distance = SquaredEuclidean(observations[i, env_index_1], observations[i, env_index_2])
                     D[env_index_1][env_index_2] = SoftDTW(SDTW_distance).compute()
 
 
