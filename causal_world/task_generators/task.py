@@ -10,6 +10,7 @@ from causal_world.task_generators.stacking2 import Stacking2TaskGenerator
 from causal_world.task_generators.general import GeneralGeneratorTask
 from causal_world.task_generators.pick_and_place import \
     PickAndPlaceTaskGenerator
+from causal_world.task_generators.experimenting import ExperimentingTaskGenerator
 
 
 def generate_task(task_generator_id="reaching", **kwargs):
@@ -40,6 +41,8 @@ def generate_task(task_generator_id="reaching", **kwargs):
         task = GeneralGeneratorTask(**kwargs)
     elif task_generator_id == "creative_stacked_blocks":
         task = CreativeStackedBlocksGeneratorTask(**kwargs)
+    elif task_generator_id == "experimenting":
+        task = ExperimentingTaskGenerator(**kwargs)
     else:
         raise Exception("No valid task_generator_id")
     return task
