@@ -1,6 +1,7 @@
 from stable_baselines.common.vec_env import SubprocVecEnv
 import numpy as np
 from sdtw import SoftDTW
+from sdtw.barycenter import sdtw_barycenter
 from sdtw.distance import SquaredEuclidean
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances
@@ -85,8 +86,6 @@ class ExperimentingSimulatorModel(object):
         num_clusters = 2
         observations = self.simulate_trajectories(action_sequences)
         rewards = np.zeros(action_sequences.shape[0])
-        #distances = np.zeros((self.num_environments,num_clusters))
-        
         max_inner_iters = 100
 
         for i in range(rewards.size):
@@ -95,18 +94,24 @@ class ExperimentingSimulatorModel(object):
             centroids = observations[i, centroid_idc].copy()
             cluster_memberships = np.zeros(self.num_environments)
             j = 0
+            dist = 0
             while j < max_inner_iters:
+                distances = np.zeros((self.num_environments,num_clusters))
                 for env in range(self.num_environments):
-                    distances = np.zeros(2)
                     for k in range(centroids.shape[0]):
                         D = SquaredEuclidean(centroids[k], observations[i, env])
-                        sdtw = SoftDTW(D)
-                        distances[k] = sdtw.compute()
-                        #distances[k] = sdtw(centroids[k], observations[i, env])
-                    print(distances)
-                
-                
+                        sdtw = SoftDTW(D, gamma=1.0) # gamma is a regularization parameter
+                        distances[env,k] = sdtw.compute()
+                dist = np.sum(np.amin(distances,axis=1))
+                print(f'Distance: {dist}')
+                cluster_memberships = np.argmin(distances, axis=1)
+                for k in range(centroid.shape[0]):
+                    cluster_observations = observations[i,np.where(cluster_memberships == k)]
+                    barycenter_init = cluster_observations/len(cluster_observations)
+                    centroids[k] = sdtw_barycenter(cluster_observations, barycenter_init)
+
                 j += 1
+            print("Now sequence ", i)
 
 
         return rewards
@@ -155,6 +160,7 @@ class ExperimentingSimulatorModel(object):
                 action = action_sequences[j, k]
                 task_observations, _, _, _ = self.envs.step(action)
                 observations[j, :, k] = task_observations
+        print(observations.shape)
         return observations
 
     def end_sim(self):
