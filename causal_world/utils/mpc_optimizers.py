@@ -68,10 +68,12 @@ class CrossEntropyMethod(object):
             rewards = self.model.evaluate_trajectories(action_samples)
             elites_indicies = rewards.argsort(axis=0)[-self.num_elite:][::-1]
             best_current_reward = np.max(rewards)
+            worst_current_reward = np.amin(rewards)
             if best_current_reward > best_reward:
                 best_reward = best_current_reward
                 best_action = action_samples[np.argmax(rewards)]
             print("iteration's best reward is ", best_current_reward)
+            print("iteration's worst reward is ",worst_current_reward)
             elites = action_samples[elites_indicies]
             new_mean = np.mean(elites, axis=0)
             new_variance = np.var(elites, axis=0)

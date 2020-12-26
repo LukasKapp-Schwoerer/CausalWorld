@@ -215,10 +215,5 @@ class ExperimentingTaskGenerator(BaseTask):
                         -1] = \
                         self._stage.get_object_state('tool_block', 'size')[
                             -1] / 2.0
-                    variable_space['goal_block'][
-                        'cylindrical_position'][0][
-                        -1] = \
-                        self._stage.get_object_state('goal_block', 'size')[
-                            -1] / 2.0
         return
 

@@ -7,7 +7,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances
 from sklearn.preprocessing import StandardScaler
 from tslearn.metrics import soft_dtw # https://github.com/tslearn-team/tslearn
-from tslearn.clustering import TimeSeriesKMeans
+from tslearn.clustering import TimeSeriesKMeans, silhouette_score
 
 class SimulatorModel(object):
 
@@ -96,7 +96,7 @@ class ExperimentingSimulatorModel(object):
         self.use_z_only = use_z_only
         self.metric = metric
         if self.metric == "softdtw":
-            self.evaluate_trajectories = self.evaluate_trajectories_softdtw # TODO: decide which one to use. For now use tslearn or softdtw
+            self.evaluate_trajectories = self.evaluate_trajectories_tslearn # TODO: decide which one to use. For now use tslearn or softdtw
         elif self.metric == "euclidian":
             self.evaluate_trajectories = self.evaluate_trajectories_euclidian
         self.reward = reward
@@ -203,22 +203,29 @@ class ExperimentingSimulatorModel(object):
 
         if self.use_z_only:
             observations = observations[:,:,:,34]
+        else:
+            observations[:,:,:,32:35]
 
         rewards = np.zeros(action_sequences.shape[0])
         
         for i in range(rewards.size):
-            kmeans = TimeSeriesKMeans(n_clusters=self.num_clusters, metric=self.metric, max_iter=30,
-                                      max_iter_barycenter=100,
-                                      metric_params={"gamma": 1},
+            kmeans = TimeSeriesKMeans(n_clusters=self.num_clusters, metric=self.metric, max_iter=100,
+                                      max_iter_barycenter=5,
+                                      metric_params={"gamma": .5},
                                       random_state=None).fit(observations[i])
             predictions = kmeans.predict(observations[i])
 
-            D = np.zeros([self.num_environments, self.num_environments])
-            for env_index_1 in range(self.num_environments):
-                for env_index_2 in range(self.num_environments):
-                    D[env_index_1][env_index_2] = soft_dtw(observations[i,env_index_1],observations[i,env_index_2])
-            rewards[i] = self.causal_curiosity(D, predictions)
-        
+            if len(np.unique(predictions)) == 1:
+                rewards[i] = -0.99
+            else:
+                rewards[i] = silhouette_score(observations[i], predictions, metric="dtw")
+                '''
+                D = np.zeros([self.num_environments, self.num_environments])
+                for env_index_1 in range(self.num_environments):
+                    for env_index_2 in range(self.num_environments):
+                        D[env_index_1][env_index_2] = soft_dtw(observations[i,env_index_1],observations[i,env_index_2])
+                rewards[i] = self.causal_curiosity(D, predictions)
+                '''
         return rewards
 
 
