@@ -217,3 +217,29 @@ class ExperimentingTaskGenerator(BaseTask):
                             -1] / 2.0
         return
 
+    def reset_task(self, interventions_dict=None, check_bounds=True):
+        """
+        :param interventions_dict: (dict) intervention dict to be specified
+                                          if an intervention to be latched
+                                          as the new starting state of the
+                                          environment.
+        :param check_bounds: (bool) specified when not in train mode and a
+                                    check for the intervention if its allowed
+                                    or not is needed.
+
+        :return: (tuple): success_signal specifying if the intervention is
+                          successful or not,
+                          interventions_info specifying
+                          number of interventions and other info,
+                          reset_observation_space_signal a bool specifying if
+                          the observation space needs to be changed or not.
+        """
+        self._robot.clear()
+        reset_observation_space_signal = \
+            self.restore_state(self._current_starting_state)
+
+        self._task_solved = False
+        success_signal = None
+        interventions_info = None
+        self._set_task_state()
+        return success_signal, interventions_info, reset_observation_space_signal

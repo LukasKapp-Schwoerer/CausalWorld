@@ -245,6 +245,7 @@ class ExperimentingSimulatorModel(object):
                                  horizon_length,
                                  self.envs.observation_space.shape[0]])
         for j in range(0, num_of_particles):
+            self.envs.reset()
             for k in range(horizon_length):
                 action = action_sequences[j, k]
                 task_observations, _, _, _ = self.envs.step(action)
