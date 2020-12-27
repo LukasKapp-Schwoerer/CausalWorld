@@ -204,7 +204,7 @@ class ExperimentingSimulatorModel(object):
         if self.use_z_only:
             observations = observations[:,:,:,34]
         else:
-            observations[:,:,:,32:35]
+            observations = observations[:,:,:,32:35]
 
         rewards = np.zeros(action_sequences.shape[0])
         
