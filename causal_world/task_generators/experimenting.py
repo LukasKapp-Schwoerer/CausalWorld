@@ -7,7 +7,7 @@ class ExperimentingTaskGenerator(BaseTask):
                  fractional_reward_weight=0,
                  dense_reward_weights=np.array([0,0,0,0,0,0,0,0]),
                  activate_sparse_reward=False,
-                 tool_block_mass=0.02,
+                 tool_block_mass=np.random.uniform(0.1, 0.5),
                  joint_positions=[-0.17530204, 0.00581657, 0.00332309, -0.09056193, -0.01266214, -0.00722627, -0.02970593, -0.06266382, -0.03557327],
                  tool_block_position=np.array([0, 0, 0.0325]),
                  tool_block_orientation=np.array([0, 0, 0, 1]),

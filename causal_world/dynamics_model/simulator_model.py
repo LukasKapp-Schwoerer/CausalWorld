@@ -215,6 +215,9 @@ class ExperimentingSimulatorModel(object):
                                       random_state=None).fit(observations[i])
             predictions = kmeans.predict(observations[i])
 
+            print("cluster memberships: ", predictions)
+            print("masses: ", [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")])
+
             if len(np.unique(predictions)) == 1:
                 rewards[i] = -0.99
             else:
