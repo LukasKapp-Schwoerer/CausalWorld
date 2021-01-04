@@ -7,9 +7,13 @@ class ExperimentingTaskGenerator(BaseTask):
                  fractional_reward_weight=0,
                  dense_reward_weights=np.array([0,0,0,0,0,0,0,0]),
                  activate_sparse_reward=False,
-                 tool_block_mass=np.random.uniform(0.1, 0.5),
-                 joint_positions=[-0.17530204, 0.00581657, 0.00332309, -0.09056193, -0.01266214, -0.00722627, -0.02970593, -0.06266382, -0.03557327],
-                 tool_block_position=np.array([0, 0, 0.0325]),
+                 tool_block_mass=np.random.uniform(0.015, 0.045),
+                 joint_positions=[-0.21737874, 0.55613149,
+                             -1.09308519, -0.12868997,
+                             0.52551013, -1.08006493,
+                             -0.00221536, 0.46163487,
+                             -1.00948735],#[-0.17530204, 0.00581657, 0.00332309, -0.09056193, -0.01266214, -0.00722627, -0.02970593, -0.06266382, -0.03557327],
+                 tool_block_position=np.array([0, 0, 0.035]),
                  tool_block_orientation=np.array([0, 0, 0, 1]),
                  enhanced_observations=False):
         """
@@ -216,30 +220,4 @@ class ExperimentingTaskGenerator(BaseTask):
                         self._stage.get_object_state('tool_block', 'size')[
                             -1] / 2.0
         return
-
-    def reset_task(self, interventions_dict=None, check_bounds=True):
-        """
-        :param interventions_dict: (dict) intervention dict to be specified
-                                          if an intervention to be latched
-                                          as the new starting state of the
-                                          environment.
-        :param check_bounds: (bool) specified when not in train mode and a
-                                    check for the intervention if its allowed
-                                    or not is needed.
-
-        :return: (tuple): success_signal specifying if the intervention is
-                          successful or not,
-                          interventions_info specifying
-                          number of interventions and other info,
-                          reset_observation_space_signal a bool specifying if
-                          the observation space needs to be changed or not.
-        """
-        self._robot.clear()
-        reset_observation_space_signal = \
-            self.restore_state(self._current_starting_state)
-
-        self._task_solved = False
-        success_signal = None
-        interventions_info = None
-        self._set_task_state()
-        return success_signal, interventions_info, reset_observation_space_signal
+    

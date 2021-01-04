@@ -182,6 +182,8 @@ class ExperimentingSimulatorModel(object):
 
         if self.use_z_only:
             observations = observations[:,:,:,34]
+        else:
+            observations= observations[:,:,:,32:35]
 
         rewards = np.zeros(action_sequences.shape[0])
         
@@ -190,11 +192,16 @@ class ExperimentingSimulatorModel(object):
             kmeans = KMeans(n_clusters=self.num_clusters, random_state=0, n_jobs=-1)
             predictions = kmeans.fit_predict(observations_flattened)
 
-            if self.reward == "kmeans_score":
-                rewards[i] = kmeans.score(observations_flattened)
-            elif self.reward == "causal_curiosity":
-                D = pairwise_distances(observations_flattened)
-                rewards[i] = self.causal_curiosity(D, predictions)
+            print("cluster memberships: ", predictions)
+            print("masses: ", [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")])
+            if len(np.unique(predictions)) == 1:
+                rewards[i] = -0.99
+            else:
+                if self.reward == "kmeans_score":
+                    rewards[i] = kmeans.score(observations_flattened)
+                elif self.reward == "causal_curiosity":
+                    D = pairwise_distances(observations_flattened)
+                    rewards[i] = self.causal_curiosity(D, predictions)
         
         return rewards
 
@@ -215,8 +222,8 @@ class ExperimentingSimulatorModel(object):
                                       random_state=None).fit(observations[i])
             predictions = kmeans.predict(observations[i])
 
-            print("cluster memberships: ", predictions)
-            print("masses: ", [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")])
+            #print("cluster memberships: ", predictions)
+            #print("masses: ", [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")])
 
             if len(np.unique(predictions)) == 1:
                 rewards[i] = -0.99
@@ -250,9 +257,10 @@ class ExperimentingSimulatorModel(object):
         for j in range(0, num_of_particles):
             self.envs.reset()
             for k in range(horizon_length):
-                action = action_sequences[j, k]
+                action = [list(action_sequences[j, k]) for i in range(self.num_environments)]
                 task_observations, _, _, _ = self.envs.step(action)
                 observations[j, :, k] = task_observations
+            #print("masses: ", [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")])
         return observations
 
     def end_sim(self):

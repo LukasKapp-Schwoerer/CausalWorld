@@ -42,7 +42,7 @@ class CrossEntropyMethod(object):
         self.actions_mean = np.tile(np.expand_dims(self.actions_mean, 0),
                                     [self.planning_horizon, 1])
         self.actions_variance = np.square(self.action_upper_bound -
-                                          self.action_lower_bound) / 16
+                                          self.action_lower_bound) / 4 #16
         self.actions_variance = np.tile(
             np.expand_dims(self.actions_variance, 0),
             [self.planning_horizon, 1])
@@ -82,4 +82,6 @@ class CrossEntropyMethod(object):
             current_actions_var = (self.alpha * current_actions_var) + (
                 (1 - self.alpha) * new_variance)
             iteration_index += 1
+        print("mean", current_actions_mean)
+        print("var", current_actions_var)
         return best_action
