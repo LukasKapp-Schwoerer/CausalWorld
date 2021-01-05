@@ -186,27 +186,39 @@ class ExperimentingSimulatorModel(object):
             observations= observations[:,:,:,32:35]
 
         rewards = np.zeros(action_sequences.shape[0])
+        predict_tmp = np.zeros((action_sequences.shape[0],self.num_environments))
         
         for i in range(rewards.size):
             observations_flattened = observations[i].reshape(self.num_environments, -1)
             kmeans = KMeans(n_clusters=self.num_clusters, random_state=0, n_jobs=-1)
             predictions = kmeans.fit_predict(observations_flattened)
-
-            print("cluster memberships: ", predictions)
-            print("masses: ", [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")])
+            predict_tmp[i] = predictions
             if len(np.unique(predictions)) == 1:
                 rewards[i] = -0.99
             else:
                 if self.reward == "kmeans_score":
                     rewards[i] = kmeans.score(observations_flattened)
                 elif self.reward == "causal_curiosity":
+                    #rewards[i] = silhouette_score(observations_flattened, predictions)
                     D = pairwise_distances(observations_flattened)
                     rewards[i] = self.causal_curiosity(D, predictions)
+
+        masses_array = [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")]
+        print("Best Reward", np.amax(rewards))
+        print("Best Reward Clustering", predict_tmp[np.argmax(rewards)])
+        print("masses: ", masses_array)
+        print("z coord of all", observations[np.argmax(rewards)])
+        print("mean z coord of all", np.mean(observations[np.argmax(rewards)], axis=1))
+        print("mean z coord of heaviest", np.mean(observations[np.argmax(rewards),np.argmax(masses_array)]))
+        print("mean z coord of lightest", np.mean(observations[np.argmax(rewards),np.argmin(masses_array)]))
         
         return rewards
 
     def evaluate_trajectories_tslearn(self, action_sequences):
         observations = self.simulate_trajectories(action_sequences)
+
+        predict_tmp = np.zeros((action_sequences.shape[0],self.num_environments))
+
 
         if self.use_z_only:
             observations = observations[:,:,:,34]
@@ -221,6 +233,7 @@ class ExperimentingSimulatorModel(object):
                                       metric_params={"gamma": .5},
                                       random_state=None).fit(observations[i])
             predictions = kmeans.predict(observations[i])
+            predict_tmp[i] = np.copy(predictions)
 
             #print("cluster memberships: ", predictions)
             #print("masses: ", [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")])
@@ -228,14 +241,23 @@ class ExperimentingSimulatorModel(object):
             if len(np.unique(predictions)) == 1:
                 rewards[i] = -0.99
             else:
-                rewards[i] = silhouette_score(observations[i], predictions, metric="dtw")
-                '''
+                #rewards[i] = silhouette_score(observations[i], predictions, metric="dtw")
+                
                 D = np.zeros([self.num_environments, self.num_environments])
                 for env_index_1 in range(self.num_environments):
                     for env_index_2 in range(self.num_environments):
                         D[env_index_1][env_index_2] = soft_dtw(observations[i,env_index_1],observations[i,env_index_2])
                 rewards[i] = self.causal_curiosity(D, predictions)
-                '''
+                
+        masses_array = [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")]
+        print("Best Reward Clustering", predict_tmp[np.argmax(rewards)])
+        print("masses: ", masses_array)
+        print("z coord of all", observations[np.argmax(rewards)])
+        print("mean z coord of all", np.mean(observations[np.argmax(rewards)], axis=1))
+        print("mean z coord of heaviest", np.mean(observations[np.argmax(rewards),np.argmax(masses_array)]))
+        print("mean z coord of lightest", np.mean(observations[np.argmax(rewards),np.argmin(masses_array)]))
+        
+
         return rewards
 
 

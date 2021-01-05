@@ -13,7 +13,7 @@ class ExperimentingTaskGenerator(BaseTask):
                              0.52551013, -1.08006493,
                              -0.00221536, 0.46163487,
                              -1.00948735],#[-0.17530204, 0.00581657, 0.00332309, -0.09056193, -0.01266214, -0.00722627, -0.02970593, -0.06266382, -0.03557327],
-                 tool_block_position=np.array([0, 0, 0.035]),
+                 tool_block_position=np.array([0, 0, 0.0325]),
                  tool_block_orientation=np.array([0, 0, 0, 1]),
                  enhanced_observations=False):
         """
