@@ -14,7 +14,9 @@ class PushingTaskGenerator(BaseTask):
                  tool_block_position=np.array([0, -0.08, 0.0325]),
                  tool_block_orientation=np.array([0, 0, 0, 1]),
                  goal_block_position=np.array([0, 0.08, 0.0325]),
-                 goal_block_orientation=np.array([0, 0, 0, 1])):
+                 goal_block_orientation=np.array([0, 0, 0, 1]),
+                 target_speed_range=None,
+                 target_speed_bonus=None):
         """
         This task generates a task for pushing an object on the arena's floor.
 
@@ -63,6 +65,10 @@ class PushingTaskGenerator(BaseTask):
         self.previous_end_effector_positions = None
         self.previous_object_position = None
         self.previous_object_orientation = None
+        self.target_speed_range = target_speed_range
+        if target_speed_range != None:
+            assert target_speed_range[0] < target_speed_range[1]
+        self.target_speed_bonus = target_speed_bonus
 
     def get_description(self):
         """
@@ -210,7 +216,25 @@ class PushingTaskGenerator(BaseTask):
         previous_dist_to_goal = np.linalg.norm(goal_position -
                                                self.previous_object_position)
         current_dist_to_goal = np.linalg.norm(goal_position - block_position)
-        rewards.append(previous_dist_to_goal - current_dist_to_goal)
+        speed = previous_dist_to_goal - current_dist_to_goal
+
+        """
+        if self.target_speed_range != None:# and np.random.uniform(0,100) < 1:
+            print("speed: ", speed)
+        """
+
+        if self.target_speed_range != None and \
+                self.target_speed_range[0] < speed < self.target_speed_range[1]:
+            speed_divergence = abs(speed - np.mean([self.target_speed_range[0], self.target_speed_range[1]]))
+            maximum_possible_divergence = 0.5 * (self.target_speed_range[1] - self.target_speed_range[0])
+            target_speed_accuracy = 1 - speed_divergence / maximum_possible_divergence
+            bonus_multiplier = 1 + self.target_speed_bonus * target_speed_accuracy
+            rewards.append(bonus_multiplier * (previous_dist_to_goal - current_dist_to_goal))
+            if np.random.uniform(0,100) < 1:
+                print(f"received bonus_multiplier {bonus_multiplier} at speed {speed}")
+        else:
+            rewards.append(previous_dist_to_goal - current_dist_to_goal)
+
 
         # calculate third reward term
         quat_diff_old = quaternion_mul(
