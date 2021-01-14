@@ -70,7 +70,9 @@ class ExperimentingSimulatorModel(object):
                 metric='softdtw', 
                 reward='causal_curiosity',
                 num_clusters=2,
-                modified=False):
+                modified=False,
+                masses=None,
+                target_trajectory=None):
         """
         This class instantiates a dynamics model based on the pybullet simulator
         (i.e: simulates exactly the result of the actions), it can be used
@@ -105,8 +107,11 @@ class ExperimentingSimulatorModel(object):
             self.evaluate_trajectories = self.evaluate_trajectories_euclidean
         self.reward = reward
         self.num_clusters = num_clusters
-        self.envs = SubprocVecEnv(
-            [_make_env_func() for i in range(self.num_environments)])
+        if masses == None:
+            self.envs = SubprocVecEnv([_make_env_func() for i in range(self.num_environments)])
+        else:
+            self.envs = SubprocVecEnv([_make_env_func(masses[i]) for i in range(self.num_environments)])
+        self.target_trajectory = target_trajectory
         return
 
 
@@ -141,6 +146,8 @@ class ExperimentingSimulatorModel(object):
             if self.reward == 'continuous':
                 D = pairwise_distances(observations_flattened)
                 rewards[i] = np.sum(D) / 2
+            elif self.reward == 'closeness_to_target_trajectory':
+                rewards[i] = np.sum(abs(observations[i] - self.target_trajectory))
             else:
                 kmeans = KMeans(n_clusters=self.num_clusters, random_state=0, n_jobs=-1)
                 predictions = kmeans.fit_predict(observations_flattened)
