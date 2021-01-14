@@ -69,7 +69,8 @@ class ExperimentingSimulatorModel(object):
                 use_z_only=False, 
                 metric='softdtw', 
                 reward='causal_curiosity',
-                num_clusters=2):
+                num_clusters=2,
+                modified=False):
         """
         This class instantiates a dynamics model based on the pybullet simulator
         (i.e: simulates exactly the result of the actions), it can be used
@@ -83,9 +84,11 @@ class ExperimentingSimulatorModel(object):
                                       to evaluate the actions.
         :param metric: (string): the distance or discrepency measure that can be used
                                       for kmeans clustering. It can be "softdtw" for 
-                                      Soft-Dynamic Time Warping or "euclidian". 
+                                      Soft-Dynamic Time Warping or "euclidean". 
         :param reward: (string): either "causal_curiosity" or "kmeans_score".
         :param num_clusters: (int): number of clusters.
+        :param modified: (int):       In order to choose between modified or standard
+                                      version of casual curiosity objective.
         """
         assert (parallel_agents == num_environments) # TODO: make parallelism more flexible
         assert (float(num_environments / parallel_agents).is_integer())
@@ -95,10 +98,11 @@ class ExperimentingSimulatorModel(object):
         self.num_environments = num_environments
         self.use_z_only = use_z_only
         self.metric = metric
+        self.modified = modified
         if self.metric == "softdtw":
             self.evaluate_trajectories = self.evaluate_trajectories_tslearn # TODO: decide which one to use. For now use tslearn or softdtw
-        elif self.metric == "euclidian":
-            self.evaluate_trajectories = self.evaluate_trajectories_euclidian
+        elif self.metric == "euclidean":
+            self.evaluate_trajectories = self.evaluate_trajectories_euclidean
         self.reward = reward
         self.num_clusters = num_clusters
         self.envs = SubprocVecEnv(
@@ -110,74 +114,18 @@ class ExperimentingSimulatorModel(object):
 
         cluster_indices = [np.where(cluster_memberships == i) for i in range(self.num_clusters)]
 
-        C1 = np.amin(D[cluster_indices[0]][:,cluster_indices[1]])
-        C2 = np.amax(D[cluster_indices[0]][:,cluster_indices[0]])
-        C3 = np.amax(D[cluster_indices[1]][:,cluster_indices[1]])
+        if not self.modified:
+            C1 = np.amin(D[cluster_indices[0]][:,cluster_indices[1]])
+            C2 = np.amax(D[cluster_indices[0]][:,cluster_indices[0]])
+            C3 = np.amax(D[cluster_indices[1]][:,cluster_indices[1]])
+        else:
+            C1 = np.mean(D[cluster_indices[0]][:,cluster_indices[1]]) * 2
+            C2 = np.mean(D[cluster_indices[0]][:,cluster_indices[0]])
+            C3 = np.mean(D[cluster_indices[1]][:,cluster_indices[1]])
 
         return C1 - C2 - C3
 
-    def evaluate_trajectories_softdtw(self, action_sequences):
-        num_clusters = 2
-        observations = self.simulate_trajectories(action_sequences)
-        
-        if self.use_z_only:
-            observations = np.squeeze(observations[:,:,:,34])
-
-        rewards = np.zeros(action_sequences.shape[0])
-        max_inner_iters = 100
-
-        for i in range(rewards.size):
-
-            #Lloyd's algorithm
-            centroid_idc = np.random.choice(self.num_environments, self.num_clusters, replace=False)
-            centroids = observations[i, centroid_idc].copy()
-            cluster_memberships = np.zeros(self.num_environments)
-            j = 0
-            dist = 0
-            previous_dist = 0
-            while j < max_inner_iters:
-                distances = np.zeros((self.num_environments,self.num_clusters))
-                for env in range(self.num_environments):
-                    for k in range(centroids.shape[0]):
-                        if self.use_z_only:
-                            D = SquaredEuclidean(centroids[k,np.newaxis], observations[i, env, np.newaxis])
-                        else:
-                            D = SquaredEuclidean(centroids[k], observations[i, env])
-                        sdtw = SoftDTW(D)
-                        distances[env,k] = sdtw.compute()
-
-                previous_dist = dist
-                dist = np.sum(np.amin(distances,axis=1))
-                if dist == previous_dist: # converged
-                    break
-
-                cluster_memberships = np.argmin(distances, axis=1)
-
-                for k in range(centroids.shape[0]):
-                    cluster_observations = np.squeeze(observations[i,np.where(cluster_memberships == k)], axis=0)
-
-                    barycenter_init = np.sum(cluster_observations, axis=0)/len(cluster_observations)
-                    if self.use_z_only:
-                        centroids[k] = np.squeeze(sdtw_barycenter(cluster_observations[:,:,np.newaxis], barycenter_init[:,np.newaxis]))
-                    else:
-                        centroids[k] = sdtw_barycenter(cluster_observations, barycenter_init)
-
-                j += 1
-
-            D = np.zeros([self.num_environments, self.num_environments])
-            for env_index_1 in range(self.num_environments):
-                for env_index_2 in range(self.num_environments):
-                    if self.use_z_only:
-                        SDTW_distance = SquaredEuclidean(observations[i, env_index_1, np.newaxis], observations[i, env_index_2, np.newaxis])
-                    else:
-                        SDTW_distance = SquaredEuclidean(observations[i, env_index_1], observations[i, env_index_2])
-                    D[env_index_1][env_index_2] = SoftDTW(SDTW_distance).compute()
-
-            rewards[i] = self.causal_curiosity(D, cluster_memberships)
-
-        return rewards
-
-    def evaluate_trajectories_euclidian(self, action_sequences):
+    def evaluate_trajectories_euclidean(self, action_sequences):
         observations = self.simulate_trajectories(action_sequences)
 
         if self.use_z_only:
@@ -190,28 +138,39 @@ class ExperimentingSimulatorModel(object):
         
         for i in range(rewards.size):
             observations_flattened = observations[i].reshape(self.num_environments, -1)
-            kmeans = KMeans(n_clusters=self.num_clusters, random_state=0, n_jobs=-1)
-            predictions = kmeans.fit_predict(observations_flattened)
-            predict_tmp[i] = predictions
-            if len(np.unique(predictions)) == 1:
-                rewards[i] = -0.99
+            if self.reward == 'continuous':
+                D = pairwise_distances(observations_flattened)
+                rewards[i] = np.sum(D) / 2
             else:
-                if self.reward == "kmeans_score":
-                    rewards[i] = kmeans.score(observations_flattened)
-                elif self.reward == "causal_curiosity":
-                    #rewards[i] = silhouette_score(observations_flattened, predictions)
-                    D = pairwise_distances(observations_flattened)
-                    rewards[i] = self.causal_curiosity(D, predictions)
+                kmeans = KMeans(n_clusters=self.num_clusters, random_state=0, n_jobs=-1)
+                predictions = kmeans.fit_predict(observations_flattened)
+                predict_tmp[i] = predictions
+                min_cluster_size = np.amin(np.bincount(predictions))
+                if self.modified:
+                    negative_reward_condition = len(np.unique(predictions)) == 1 or min_cluster_size/(self.num_environments/self.num_clusters) < 0.7
+                else:
+                    negative_reward_condition = len(np.unique(predictions)) == 1
+                if negative_reward_condition:
+                    rewards[i] = -0.99
+                else:
+                    if self.reward == "kmeans_score":
+                        rewards[i] = kmeans.score(observations_flattened)
+                    elif self.reward == "causal_curiosity":
+                        #rewards[i] = silhouette_score(observations_flattened, predictions)
+                        D = pairwise_distances(observations_flattened)
+                        rewards[i] = self.causal_curiosity(D, predictions)
+                
+
 
         masses_array = [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")]
         print("Best Reward", np.amax(rewards))
-        print("Best Reward Clustering", predict_tmp[np.argmax(rewards)])
+        #print("Best Reward Clustering", predict_tmp[np.argmax(rewards)])
         print("masses: ", masses_array)
-        print("z coord of all", observations[np.argmax(rewards)])
-        print("mean z coord of all", np.mean(observations[np.argmax(rewards)], axis=1))
-        print("mean z coord of heaviest", np.mean(observations[np.argmax(rewards),np.argmax(masses_array)]))
-        print("mean z coord of lightest", np.mean(observations[np.argmax(rewards),np.argmin(masses_array)]))
-        
+        if self.use_z_only:
+            print("z coord of all \n", observations[np.argmax(rewards)])
+            print("mean z coord of all", np.mean(observations[np.argmax(rewards)], axis=1))
+            print("mean z coord of heaviest", np.mean(observations[np.argmax(rewards),np.argmax(masses_array)]))
+            print("mean z coord of lightest", np.mean(observations[np.argmax(rewards),np.argmin(masses_array)]))
         return rewards
 
     def evaluate_trajectories_tslearn(self, action_sequences):
@@ -237,11 +196,15 @@ class ExperimentingSimulatorModel(object):
 
             #print("cluster memberships: ", predictions)
             #print("masses: ", [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")])
-
-            if len(np.unique(predictions)) == 1:
+            min_cluster_size = np.amin(np.bincount(predictions))
+            if self.modified:
+                negative_reward_condition = len(np.unique(predictions)) == 1 or min_cluster_size/(self.num_environments/self.num_clusters) < 0.7
+            else:
+                negative_reward_condition = len(np.unique(predictions)) == 1
+            if negative_reward_condition:
                 rewards[i] = -0.99
             else:
-                #rewards[i] = silhouette_score(observations[i], predictions, metric="dtw")
+                #rewards[i] = silhouette_score(observations[i], predictions, metric="softdtw")
                 
                 D = np.zeros([self.num_environments, self.num_environments])
                 for env_index_1 in range(self.num_environments):
@@ -252,10 +215,11 @@ class ExperimentingSimulatorModel(object):
         masses_array = [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")]
         print("Best Reward Clustering", predict_tmp[np.argmax(rewards)])
         print("masses: ", masses_array)
-        print("z coord of all", observations[np.argmax(rewards)])
-        print("mean z coord of all", np.mean(observations[np.argmax(rewards)], axis=1))
-        print("mean z coord of heaviest", np.mean(observations[np.argmax(rewards),np.argmax(masses_array)]))
-        print("mean z coord of lightest", np.mean(observations[np.argmax(rewards),np.argmin(masses_array)]))
+        if self.use_z_only:
+            print("z coord of all", observations[np.argmax(rewards)])
+            print("mean z coord of all", np.mean(observations[np.argmax(rewards)], axis=1))
+            print("mean z coord of heaviest", np.mean(observations[np.argmax(rewards),np.argmax(masses_array)]))
+            print("mean z coord of lightest", np.mean(observations[np.argmax(rewards),np.argmin(masses_array)]))
         
 
         return rewards
