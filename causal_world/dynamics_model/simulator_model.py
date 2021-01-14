@@ -138,30 +138,36 @@ class ExperimentingSimulatorModel(object):
         
         for i in range(rewards.size):
             observations_flattened = observations[i].reshape(self.num_environments, -1)
-            kmeans = KMeans(n_clusters=self.num_clusters, random_state=0, n_jobs=-1)
-            predictions = kmeans.fit_predict(observations_flattened)
-            predict_tmp[i] = predictions
-            min_cluster_size = np.amin(np.bincount(predictions))
-            if self.modified:
-                negative_reward_condition = len(np.unique(predictions)) == 1 or min_cluster_size/(self.num_environments/self.num_clusters) < 0.7
+            if self.reward == 'continuous':
+                D = pairwise_distances(observations_flattened)
+                rewards[i] = np.sum(D) / 2
             else:
-                negative_reward_condition = len(np.unique(predictions)) == 1
-            if negative_reward_condition:
-                rewards[i] = -0.99
-            else:
-                if self.reward == "kmeans_score":
-                    rewards[i] = kmeans.score(observations_flattened)
-                elif self.reward == "causal_curiosity":
-                    #rewards[i] = silhouette_score(observations_flattened, predictions)
-                    D = pairwise_distances(observations_flattened)
-                    rewards[i] = self.causal_curiosity(D, predictions)
+                kmeans = KMeans(n_clusters=self.num_clusters, random_state=0, n_jobs=-1)
+                predictions = kmeans.fit_predict(observations_flattened)
+                predict_tmp[i] = predictions
+                min_cluster_size = np.amin(np.bincount(predictions))
+                if self.modified:
+                    negative_reward_condition = len(np.unique(predictions)) == 1 or min_cluster_size/(self.num_environments/self.num_clusters) < 0.7
+                else:
+                    negative_reward_condition = len(np.unique(predictions)) == 1
+                if negative_reward_condition:
+                    rewards[i] = -0.99
+                else:
+                    if self.reward == "kmeans_score":
+                        rewards[i] = kmeans.score(observations_flattened)
+                    elif self.reward == "causal_curiosity":
+                        #rewards[i] = silhouette_score(observations_flattened, predictions)
+                        D = pairwise_distances(observations_flattened)
+                        rewards[i] = self.causal_curiosity(D, predictions)
+                
+
 
         masses_array = [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")]
         print("Best Reward", np.amax(rewards))
-        print("Best Reward Clustering", predict_tmp[np.argmax(rewards)])
+        #print("Best Reward Clustering", predict_tmp[np.argmax(rewards)])
         print("masses: ", masses_array)
         if self.use_z_only:
-            print("z coord of all", observations[np.argmax(rewards)])
+            print("z coord of all \n", observations[np.argmax(rewards)])
             print("mean z coord of all", np.mean(observations[np.argmax(rewards)], axis=1))
             print("mean z coord of heaviest", np.mean(observations[np.argmax(rewards),np.argmax(masses_array)]))
             print("mean z coord of lightest", np.mean(observations[np.argmax(rewards),np.argmin(masses_array)]))
