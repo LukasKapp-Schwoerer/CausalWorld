@@ -1,8 +1,5 @@
 from stable_baselines.common.vec_env import SubprocVecEnv
 import numpy as np
-from sdtw import SoftDTW
-from sdtw.barycenter import sdtw_barycenter
-from sdtw.distance import SquaredEuclidean
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances
 from sklearn.preprocessing import StandardScaler
@@ -147,7 +144,7 @@ class ExperimentingSimulatorModel(object):
                 D = pairwise_distances(observations_flattened)
                 rewards[i] = np.sum(D) / 2
             elif self.reward == 'closeness_to_target_trajectory':
-                rewards[i] = np.sum(abs(observations[i] - self.target_trajectory))
+                rewards[i] = - np.sum(np.square(observations[i] - self.target_trajectory))
             else:
                 kmeans = KMeans(n_clusters=self.num_clusters, random_state=0, n_jobs=-1)
                 predictions = kmeans.fit_predict(observations_flattened)
@@ -255,6 +252,56 @@ class ExperimentingSimulatorModel(object):
                 observations[j, :, k] = task_observations
             #print("masses: ", [env['tool_block']['mass'] for env in self.envs.env_method("get_current_state_variables")])
         return observations
+
+    def end_sim(self):
+        """
+        Closes the environments that were used for simulation.
+        :return:
+        """
+        self.envs.close()
+        return
+
+class DatasetSimulatorModel(object):
+
+    def __init__(self, _make_env_func, parallel_agents, mass):
+        """
+        This class instantiates a dynamics model based on the pybullet simulator
+        (i.e: simulates exactly the result of the actions), it can be used
+        for reward tuning and verifying tasks..etc
+
+        :param _make_env_func: (func) a function if called it will return a gym
+                                      environment.
+        :param parallel_agents: (int) number of parallel agents to siumulate
+                                      to evaluate the actions.
+        """
+        self.parallel_agents = parallel_agents
+        self.envs = SubprocVecEnv(
+            [_make_env_func(mass) for i in range(self.parallel_agents)])
+        return
+
+    def evaluate_trajectories(self, action_sequences):
+        """
+        A function to be called to evaluate the action sequences and return
+        the corresponding reward for each sequence.
+
+        :param action_sequences: (nd.array) actions to be evaluated
+                                            (number of sequences, horizon length)
+        :return: (nd.array) sum of rewards for each action sequence.
+        """
+        horizon_length = action_sequences.shape[1]
+        num_of_particles = action_sequences.shape[0]
+        rewards = np.zeros([num_of_particles])
+        assert ((float(num_of_particles) / self.parallel_agents).is_integer())
+        for j in range(0, num_of_particles, self.parallel_agents):
+            self.envs.reset()
+            total_reward = np.zeros([self.parallel_agents])
+            for k in range(horizon_length):
+                actions = action_sequences[j:j + self.parallel_agents, k]
+                task_observations, current_reward, done, info = \
+                    self.envs.step(actions)
+                total_reward += current_reward
+            rewards[j:j + self.parallel_agents] = total_reward
+        return rewards
 
     def end_sim(self):
         """
