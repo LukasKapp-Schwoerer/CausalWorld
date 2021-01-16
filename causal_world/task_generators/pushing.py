@@ -211,6 +211,7 @@ class PushingTaskGenerator(BaseTask):
             self.previous_object_position)
         rewards.append(previous_distance_from_block -
                        current_distance_from_block)
+        
 
         # calculate second reward term
         previous_dist_to_goal = np.linalg.norm(goal_position -
@@ -223,17 +224,18 @@ class PushingTaskGenerator(BaseTask):
             print("speed: ", speed)
         """
 
-        if self.target_speed_range != None and \
-                self.target_speed_range[0] < speed < self.target_speed_range[1]:
-            speed_divergence = abs(speed - np.mean([self.target_speed_range[0], self.target_speed_range[1]]))
-            maximum_possible_divergence = 0.5 * (self.target_speed_range[1] - self.target_speed_range[0])
-            target_speed_accuracy = 1 - speed_divergence / maximum_possible_divergence
-            bonus_multiplier = 1 + self.target_speed_bonus * target_speed_accuracy
-            rewards.append(bonus_multiplier * (previous_dist_to_goal - current_dist_to_goal))
-            if np.random.uniform(0,100) < 1:
-                print(f"received bonus_multiplier {bonus_multiplier} at speed {speed}")
-        else:
-            rewards.append(previous_dist_to_goal - current_dist_to_goal)
+        # if self.target_speed_range != None and \
+        #         self.target_speed_range[0] < speed < self.target_speed_range[1]:
+        #     speed_divergence = abs(speed - np.mean([self.target_speed_range[0], self.target_speed_range[1]]))
+        #     maximum_possible_divergence = 0.5 * (self.target_speed_range[1] - self.target_speed_range[0])
+        #     target_speed_accuracy = 1 - speed_divergence / maximum_possible_divergence
+        #     bonus_multiplier = 1 + self.target_speed_bonus * target_speed_accuracy
+        #     rewards.append(bonus_multiplier * (previous_dist_to_goal - current_dist_to_goal))
+        #     if np.random.uniform(0,100) < 1:
+        #         print(f"received bonus_multiplier {bonus_multiplier} at speed {speed}")
+        # else:
+        #     rewards.append(previous_dist_to_goal - current_dist_to_goal)
+        rewards.append(-current_dist_to_goal)
 
 
         # calculate third reward term

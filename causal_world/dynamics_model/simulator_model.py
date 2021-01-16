@@ -1,8 +1,5 @@
 from stable_baselines.common.vec_env import SubprocVecEnv
 import numpy as np
-from sdtw import SoftDTW
-from sdtw.barycenter import sdtw_barycenter
-from sdtw.distance import SquaredEuclidean
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances
 from sklearn.preprocessing import StandardScaler
@@ -208,6 +205,7 @@ class ExperimentingSimulatorModel(object):
                 negative_reward_condition = len(np.unique(predictions)) == 1 or min_cluster_size/(self.num_environments/self.num_clusters) < 0.7
             else:
                 negative_reward_condition = len(np.unique(predictions)) == 1
+            negative_reward_condition = len(np.unique(predictions)) == 1
             if negative_reward_condition:
                 rewards[i] = -0.99
             else:
