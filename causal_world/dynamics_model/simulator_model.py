@@ -144,7 +144,7 @@ class ExperimentingSimulatorModel(object):
                 D = pairwise_distances(observations_flattened)
                 rewards[i] = np.sum(D) / 2
             elif self.reward == 'closeness_to_target_trajectory':
-                rewards[i] = np.sum(abs(observations[i] - self.target_trajectory))
+                rewards[i] = - np.sum(np.square(observations[i] - self.target_trajectory))
             else:
                 kmeans = KMeans(n_clusters=self.num_clusters, random_state=0, n_jobs=-1)
                 predictions = kmeans.fit_predict(observations_flattened)

@@ -77,6 +77,8 @@ class CrossEntropyMethod(object):
             elites = action_samples[elites_indicies]
             new_mean = np.mean(elites, axis=0)
             new_variance = np.var(elites, axis=0)
+            print("new mean mean: ", new_mean.mean())
+            print("new mean variance: ", new_variance.mean())
             current_actions_mean = (self.alpha * current_actions_mean) + (
                 (1 - self.alpha) * new_mean)
             current_actions_var = (self.alpha * current_actions_var) + (
